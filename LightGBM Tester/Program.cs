@@ -142,10 +142,15 @@ class Program
         Console.WriteLine($"Per class Log-Loss: {string.Join(" , ", testMetrics.PerClassLogLoss.Select(c => c.ToString()))}");
         Console.WriteLine($"Macro Accuracy: {testMetrics.MacroAccuracy}");
         Console.WriteLine($"Micro Accuracy: {testMetrics.MicroAccuracy}");
-        Console.WriteLine($"Confusion Matrix:\n {testMetrics.ConfusionMatrix.GetFormattedConfusionTable()}");
+        Console.WriteLine($"Confusion Matrix:\n {testMetrics.ConfusionMatrix.GetFormattedConfusionTable()}\n");
 
-        Console.ReadLine(); 
-
+        Console.WriteLine("Save the Model?");
+        var response = Console.ReadLine()?.ToLower(); 
+        if(response == "yes")
+        {
+            mlContext.Model.Save(model, trainingData.Schema, @"C:\Users\rober\OneDrive\Desktop\LightGBMModel.zip");
+        }
+        Console.WriteLine("Model saved to C:\\Users\\rober\\OneDrive\\Desktop\\LightGBMModel.zip");
     }
 }
     
