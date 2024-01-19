@@ -15,15 +15,15 @@ class Program
         // Training Data
         using (StreamReader reader = new StreamReader(@"C:\Users\rober\OneDrive\Desktop\merged_red_train_10_synthetic.csv"))
         {
-          
+
             string header = reader.ReadLine();
             try
             {
                 while (!reader.EndOfStream)
                 {
-                    
+
                     string line = reader.ReadLine();
-                    if(string.IsNullOrEmpty(line))
+                    if (string.IsNullOrEmpty(line))
                     {
                         continue;
                     }
@@ -108,7 +108,7 @@ class Program
         IDataView testingData = mlContext.Data.LoadFromEnumerable(testingPixels);
 
         var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation", "Intensity" })
-            .Append(mlContext.Transforms.Conversion.MapValueToKey("Label", "Color"))
+            .Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
             .Append(mlContext.MulticlassClassification.Trainers.LightGbm(new LightGbmMulticlassTrainer.Options()
             {
                 NumberOfLeaves = 5,
@@ -122,7 +122,7 @@ class Program
             .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
 
         var model = pipeline.Fit(trainingData);
-
+        Console.WriteLine("Model Trained...");
         // supposed to be Transparent Black
         var color = new PixelData()
         {
@@ -145,22 +145,35 @@ class Program
         Console.WriteLine($"Confusion Matrix:\n {testMetrics.ConfusionMatrix.GetFormattedConfusionTable()}\n");
 
         Console.WriteLine("Save the Model?");
-        var response = Console.ReadLine()?.ToLower(); 
-        if(response == "yes")
+        var response = Console.ReadLine()?.ToLower();
+        if (response == "yes")
         {
             mlContext.Model.Save(model, trainingData.Schema, @"C:\Users\rober\OneDrive\Desktop\LightGBMModel.zip");
+            Console.WriteLine("Model saved to C:\\Users\\rober\\OneDrive\\Desktop\\LightGBMModel.zip");
         }
-        Console.WriteLine("Model saved to C:\\Users\\rober\\OneDrive\\Desktop\\LightGBMModel.zip");
     }
 }
-    
+
 public class PixelData
 {
+    [LoadColumn(0)]
     public float Hue { get; set; }
+    [LoadColumn(1)]
     public float Saturation { get; set; }
+    [LoadColumn(2)]
     public float Intensity { get; set; }
+    [LoadColumn(3)]
     public string Color { get; set; }
+
 }
+
+//public class PixelDataWithLabel 
+//{
+//    public float Hue { get; set; }
+//    public float Saturation { get; set; }
+//    public float Intensity { get; set; }
+//    public string Color { get; set; }
+//}
 
 public class Predicition
 {
