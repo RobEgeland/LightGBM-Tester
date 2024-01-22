@@ -8,13 +8,20 @@ class Program
 {
     static void Main(string[] args)
     {
+        Console.WriteLine("Input camera color for training(Red or Black)");
+        string cameraColor = Console.ReadLine().ToUpper();
+        
 
         MLContext mlContext = new MLContext();
         List<PixelData> trainingPixels = new List<PixelData>();
+        Console.WriteLine("Paste the path to the Training data File");
+        string trainingPath = Console.ReadLine();
+        trainingPath = trainingPath.Trim('"');
 
         // Training Data
-        using (StreamReader reader = new StreamReader(@"C:\Users\rober\OneDrive\Desktop\merged_red_train_10_synthetic.csv"))
+        using (StreamReader reader = new StreamReader(trainingPath))
         {
+            Console.WriteLine("Training...");
 
             string header = reader.ReadLine();
             try
@@ -54,15 +61,18 @@ class Program
             catch (Exception ex)
             {
 
-                throw ex;
+                Console.WriteLine("Invalid Path" + ex.Message);
             }
         }
         IDataView trainingData = mlContext.Data.LoadFromEnumerable(trainingPixels);
-
+        Console.WriteLine("Paste path to testing file");
+        string testPath = Console.ReadLine();
+        testPath = testPath.Trim('"');
         //Testing Data
         List<PixelData> testingPixels = new List<PixelData>();
-        using (StreamReader reader = new StreamReader(@"C:\Users\rober\OneDrive\Desktop\merged_red_test_2_synthetic.csv"))
+        using (StreamReader reader = new StreamReader(testPath))
         {
+            Console.WriteLine("Testing...");
 
             string header = reader.ReadLine();
             try
@@ -105,13 +115,14 @@ class Program
                 throw ex;
             }
         }
+
         IDataView testingData = mlContext.Data.LoadFromEnumerable(testingPixels);
 
         var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation", "Intensity" })
             .Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
             .Append(mlContext.MulticlassClassification.Trainers.LightGbm(new LightGbmMulticlassTrainer.Options()
             {
-                NumberOfLeaves = 5,
+                NumberOfLeaves = 31,
                 MinimumExampleCountPerLeaf = 1,
                 NumberOfIterations = 100,
                 LearningRate = 0.1,
@@ -122,18 +133,9 @@ class Program
             .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
 
         var model = pipeline.Fit(trainingData);
-        Console.WriteLine("Model Trained...");
-        // supposed to be Transparent Black
-        var color = new PixelData()
-        {
-            Hue = 330f,
-            Saturation = 0.09210525453090668f,
-            Intensity = 0.2980392277240753f
-        };
 
-        var predictionEngine = mlContext.Model.CreatePredictionEngine<PixelData, Predicition>(model).Predict(color);
-        Console.WriteLine("Predicited value should be Transparent Black");
-        Console.WriteLine($"Predicted Color for Hue: {color.Hue} = {predictionEngine.Color}\n");
+        Console.WriteLine("Model Trained");
+    
         Console.WriteLine("Evaluating...");
 
         var testMetrics = mlContext.MulticlassClassification.Evaluate(model.Transform(testingData));
@@ -148,8 +150,8 @@ class Program
         var response = Console.ReadLine()?.ToLower();
         if (response == "yes")
         {
-            mlContext.Model.Save(model, trainingData.Schema, @"C:\Users\rober\OneDrive\Desktop\LightGBMModel.zip");
-            Console.WriteLine("Model saved to C:\\Users\\rober\\OneDrive\\Desktop\\LightGBMModel.zip");
+            mlContext.Model.Save(model, trainingData.Schema, $@"C:\Users\rober\OneDrive\Desktop\LightGBMModel{cameraColor}.zip");
+            Console.WriteLine($"Model saved to C:\\Users\\rober\\OneDrive\\Desktop\\LightGBMModel{cameraColor}.zip");
         }
     }
 }
