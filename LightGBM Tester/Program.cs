@@ -3,14 +3,16 @@ using System.Diagnostics;
 using System.Drawing;
 using Microsoft.ML;
 using Microsoft.ML.Data;
+using Microsoft.ML.Trainers.FastTree;
 using Microsoft.ML.Trainers.LightGbm;
+
 class Program
 {
     static void Main(string[] args)
     {
         Console.WriteLine("Input camera color for training(Red or Black)");
         string cameraColor = Console.ReadLine().ToUpper();
-        
+
 
         MLContext mlContext = new MLContext();
         List<PixelData> trainingPixels = new List<PixelData>();
@@ -21,7 +23,7 @@ class Program
         // Training Data
         using (StreamReader reader = new StreamReader(trainingPath))
         {
-            
+
 
             string header = reader.ReadLine();
             try
@@ -123,19 +125,44 @@ class Program
             .Append(mlContext.MulticlassClassification.Trainers.LightGbm(new LightGbmMulticlassTrainer.Options()
             {
                 NumberOfLeaves = 31,
-                MinimumExampleCountPerLeaf = 1,
-                NumberOfIterations = 100,
-                LearningRate = 0.1,
+                MinimumExampleCountPerLeaf = 21,
+                NumberOfIterations = 140,
+                LearningRate = 0.047,
                 UseSoftmax = true,
                 LabelColumnName = "Label",
                 FeatureColumnName = "Features"
             }))
             .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
 
+        //var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation", "Intensity" })
+        //.Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
+        //.Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
+        //    mlContext.BinaryClassification.Trainers.FastForest(labelColumnName: "Label", featureColumnName: "Features")
+        //    ))
+        //.Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+
+        //var pipeline = mlContext.Transforms.Concatenate("Features", "Hue", "Saturation", "Intensity")
+        //.Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
+        //.Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
+        //mlContext.BinaryClassification.Trainers.FastTree(new FastTreeBinaryTrainer.Options
+        //{
+        //    NumberOfLeaves = 31, // Example: maximum leaves in each tree
+        //    MinimumExampleCountPerLeaf = 21, // Minimum number of examples per leaf
+        //    NumberOfTrees = 140, // Number of trees in the ensemble
+        //    LearningRate = 0.047, // Learning rate
+        //    LabelColumnName = "Label",
+        //    FeatureColumnName = "Features"
+        //})
+        //))
+        //.Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+
+
+
+
         var model = pipeline.Fit(trainingData);
         Console.WriteLine("Model Trained");
-      
-    
+
+
         Console.WriteLine("Testing...");
 
         var testMetrics = mlContext.MulticlassClassification.Evaluate(model.Transform(testingData));
@@ -150,8 +177,10 @@ class Program
         var response = Console.ReadLine()?.ToLower();
         if (response == "yes")
         {
-            mlContext.Model.Save(model, trainingData.Schema, $@"C:\Users\rober\OneDrive\Desktop\LightGBMModel{cameraColor}.zip");
-            Console.WriteLine($"Model saved to C:\\Users\\rober\\OneDrive\\Desktop\\LightGBMModel{cameraColor}.zip");
+            Console.WriteLine("What version is this model?");
+            var version = Console.ReadLine();
+            mlContext.Model.Save(model, trainingData.Schema, $@"C:\Users\rober\OneDrive\Desktop\LightGBMModel{cameraColor}v{version}.zip");
+            Console.WriteLine($"Model saved to C:\\Users\\rober\\OneDrive\\Desktop\\LightGBMModel{cameraColor}v{version}.zip");
         }
     }
 }
