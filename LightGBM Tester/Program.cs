@@ -21,7 +21,7 @@ class Program
         // Training Data
         using (StreamReader reader = new StreamReader(trainingPath))
         {
-            Console.WriteLine("Training...");
+            
 
             string header = reader.ReadLine();
             try
@@ -64,6 +64,7 @@ class Program
                 Console.WriteLine("Invalid Path" + ex.Message);
             }
         }
+
         IDataView trainingData = mlContext.Data.LoadFromEnumerable(trainingPixels);
         Console.WriteLine("Paste path to testing file");
         string testPath = Console.ReadLine();
@@ -72,7 +73,6 @@ class Program
         List<PixelData> testingPixels = new List<PixelData>();
         using (StreamReader reader = new StreamReader(testPath))
         {
-            Console.WriteLine("Testing...");
 
             string header = reader.ReadLine();
             try
@@ -117,7 +117,7 @@ class Program
         }
 
         IDataView testingData = mlContext.Data.LoadFromEnumerable(testingPixels);
-
+        Console.WriteLine("Training...");
         var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation", "Intensity" })
             .Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
             .Append(mlContext.MulticlassClassification.Trainers.LightGbm(new LightGbmMulticlassTrainer.Options()
@@ -133,10 +133,10 @@ class Program
             .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
 
         var model = pipeline.Fit(trainingData);
-
         Console.WriteLine("Model Trained");
+      
     
-        Console.WriteLine("Evaluating...");
+        Console.WriteLine("Testing...");
 
         var testMetrics = mlContext.MulticlassClassification.Evaluate(model.Transform(testingData));
 
