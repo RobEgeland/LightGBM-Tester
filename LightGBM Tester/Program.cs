@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Globalization;
 using System.Diagnostics;
 using System.Drawing;
 using Microsoft.ML;
@@ -182,10 +184,31 @@ class Program
         var response = Console.ReadLine()?.ToLower();
         if (response == "yes")
         {
+            string folderPath = @"C:\Users\rober\OneDrive\Desktop\CuDDI_Models";
+            if (!Directory.Exists(folderPath))
+            {
+                Directory.CreateDirectory(folderPath);
+            }
             Console.WriteLine("What version is this model?");
             var version = Console.ReadLine();
-            mlContext.Model.Save(model, trainingData.Schema, $@"C:\Users\rober\OneDrive\Desktop\FastTreeModel{cameraColor}v{version}.zip");
-            Console.WriteLine($"Model saved to C:\\Users\\rober\\OneDrive\\Desktop\\FastTreeModel{cameraColor}v{version}.zip");
+            mlContext.Model.Save(model, trainingData.Schema, $@"C:\Users\rober\OneDrive\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.zip");
+            Console.WriteLine(@$"Model saved to C:\Users\rober\OneDrive\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.zip");
+            string metricsPath = $@"C:\Users\rober\OneDrive\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.txt";
+            using (var writer = new StreamWriter(metricsPath))
+            {
+                writer.WriteLine("Metric,Value");
+                writer.WriteLine($"Macro Accuracy,{testMetrics.MacroAccuracy.ToString(CultureInfo.InvariantCulture)}");
+                writer.WriteLine($"Micro Accuracy,{testMetrics.MicroAccuracy.ToString(CultureInfo.InvariantCulture)}");
+                writer.WriteLine($"Log-Loss,{testMetrics.LogLoss.ToString(CultureInfo.InvariantCulture)}");
+
+                // Write per class log-loss
+                for (int i = 0; i < testMetrics.PerClassLogLoss.Count; i++)
+                {
+                    writer.WriteLine($"Class {i} Log-Loss,{testMetrics.PerClassLogLoss[i].ToString(CultureInfo.InvariantCulture)}");
+                }
+                writer.WriteLine($"Confusion Matrix:\n {testMetrics.ConfusionMatrix.GetFormattedConfusionTable()}\n");
+            }
+            Console.WriteLine($"Metrics saved to {metricsPath}");
         }
     }
 }
