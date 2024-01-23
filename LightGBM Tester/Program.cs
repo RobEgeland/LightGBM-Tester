@@ -120,26 +120,31 @@ class Program
 
         IDataView testingData = mlContext.Data.LoadFromEnumerable(testingPixels);
         Console.WriteLine("Training...");
-        var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation", "Intensity" })
-            .Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
-            .Append(mlContext.MulticlassClassification.Trainers.LightGbm(new LightGbmMulticlassTrainer.Options()
-            {
-                NumberOfLeaves = 31,
-                MinimumExampleCountPerLeaf = 21,
-                NumberOfIterations = 140,
-                LearningRate = 0.047,
-                UseSoftmax = true,
-                LabelColumnName = "Label",
-                FeatureColumnName = "Features"
-            }))
-            .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+
+        // this is the old LighGBM Model, did not work when implementing into CuDDI(versioning issues)
 
         //var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation", "Intensity" })
-        //.Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
-        //.Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
-        //    mlContext.BinaryClassification.Trainers.FastForest(labelColumnName: "Label", featureColumnName: "Features")
-        //    ))
-        //.Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+        //    .Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
+        //    .Append(mlContext.MulticlassClassification.Trainers.LightGbm(new LightGbmMulticlassTrainer.Options()
+        //    {
+        //        NumberOfLeaves = 31,
+        //        MinimumExampleCountPerLeaf = 21,
+        //        NumberOfIterations = 140,
+        //        LearningRate = 0.047,
+        //        UseSoftmax = true,
+        //        LabelColumnName = "Label",
+        //        FeatureColumnName = "Features"
+        //    }))
+        //    .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+
+        var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation", "Intensity" })
+        .Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
+        .Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
+            mlContext.BinaryClassification.Trainers.FastTree(labelColumnName: "Label", featureColumnName: "Features")
+            ))
+        .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+
+        // Fast Tree with custom parameters didnt really affect accuracy
 
         //var pipeline = mlContext.Transforms.Concatenate("Features", "Hue", "Saturation", "Intensity")
         //.Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
@@ -179,8 +184,8 @@ class Program
         {
             Console.WriteLine("What version is this model?");
             var version = Console.ReadLine();
-            mlContext.Model.Save(model, trainingData.Schema, $@"C:\Users\rober\OneDrive\Desktop\LightGBMModel{cameraColor}v{version}.zip");
-            Console.WriteLine($"Model saved to C:\\Users\\rober\\OneDrive\\Desktop\\LightGBMModel{cameraColor}v{version}.zip");
+            mlContext.Model.Save(model, trainingData.Schema, $@"C:\Users\rober\OneDrive\Desktop\FastTreeModel{cameraColor}v{version}.zip");
+            Console.WriteLine($"Model saved to C:\\Users\\rober\\OneDrive\\Desktop\\FastTreeModel{cameraColor}v{version}.zip");
         }
     }
 }
