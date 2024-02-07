@@ -191,9 +191,9 @@ class Program
             }
             Console.WriteLine("What version is this model?");
             var version = Console.ReadLine();
-            mlContext.Model.Save(model, trainingData.Schema, $@"C:\Users\rober\OneDrive\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.zip");
-            Console.WriteLine(@$"Model saved to C:\Users\rober\OneDrive\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.zip");
-            string metricsPath = $@"C:\Users\rober\OneDrive\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.txt";
+            mlContext.Model.Save(model, trainingData.Schema, $@"C:\Users\rober\Desktop\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.zip");
+            Console.WriteLine(@$"Model saved to C:\Users\rober\Desktop\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.zip");
+            string metricsPath = $@"C:\Users\rober\Desktop\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.txt";
             using (var writer = new StreamWriter(metricsPath))
             {
                 writer.WriteLine("Metric,Value");
@@ -207,8 +207,10 @@ class Program
                     writer.WriteLine($"Class {i} Log-Loss,{testMetrics.PerClassLogLoss[i].ToString(CultureInfo.InvariantCulture)}");
                 }
                 writer.WriteLine($"Confusion Matrix:\n {testMetrics.ConfusionMatrix.GetFormattedConfusionTable()}\n");
+                writer.WriteLine($"Model Training Data: {trainingPath}");
+                writer.WriteLine($"Model Testing Data: {testPath}");
             }
-            Console.WriteLine($"Metrics saved to {metricsPath}");
+            Console.WriteLine($"Metrics saved to {metricsPath}");          
         }
     }
 }
