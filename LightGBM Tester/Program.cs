@@ -184,16 +184,17 @@ class Program
         var response = Console.ReadLine()?.ToLower();
         if (response == "yes")
         {
-            string folderPath = @"C:\Users\rober\OneDrive\Desktop\CuDDI_Models";
+            string folderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "CuDDI_Models");
             if (!Directory.Exists(folderPath))
             {
                 Directory.CreateDirectory(folderPath);
             }
             Console.WriteLine("What version is this model?");
             var version = Console.ReadLine();
-            mlContext.Model.Save(model, trainingData.Schema, $@"C:\Users\rober\Desktop\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.zip");
-            Console.WriteLine(@$"Model saved to C:\Users\rober\Desktop\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.zip");
-            string metricsPath = $@"C:\Users\rober\Desktop\Desktop\CuDDI_Models\FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.txt";
+            string modelPath = Path.Combine(folderPath, $"FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.zip");
+            mlContext.Model.Save(model, trainingData.Schema, modelPath);
+            Console.WriteLine(@$"Model saved to {modelPath}");
+            string metricsPath = Path.Combine(folderPath, $"FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.txt");
             using (var writer = new StreamWriter(metricsPath))
             {
                 writer.WriteLine("Metric,Value");
