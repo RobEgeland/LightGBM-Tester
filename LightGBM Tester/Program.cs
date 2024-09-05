@@ -122,11 +122,12 @@ class Program
         Console.WriteLine("Training...");
 
         // Define hyperparameter options
-        var numberOfLeavesOptions = new[] { 10, 20, 30 };
-        var numberOfTreesOptions = new[] { 50, 100, 150 };
-        var minExampleCountPerLeafOptions = new[] { 5, 10, 20 };
-        var learningRateOptions = new[] { 0.01, 0.05, 0.1 };
-        var shrinkageOptions = new[] { 0.8, 0.9, 1.0 };
+        int[] numberOfLeavesOptions = { 10, 15, 20, 30 }; // Added more intermediate values to help control complexity
+        int[] numberOfTreesOptions = { 50, 100, 150 }; // Increased upper range for larger ensembles if needed
+        int[] minExampleCountPerLeafOptions = { 3, 5, 10 }; // Reduced lower bound for more detailed learning if underfitting
+        float[] learningRateOptions = { 0.01f, 0.05f, 0.1f, 0.2f }; // Added 0.01 for finer control over convergence
+        float[] shrinkageOptions = { 0.7f, 0.8f, 0.9f }; // Added 0.7 for better control over regularization
+
 
         double bestAccuracy = 0;
         FastTreeBinaryTrainer.Options bestOptions = null;
