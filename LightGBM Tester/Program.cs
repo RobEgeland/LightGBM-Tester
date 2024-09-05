@@ -58,7 +58,7 @@ class Program
                         Hue = hue,
                         Saturation = saturation,
                         Intensity = intensity,
-                        Color = values[2]
+                        Color = values[3]
                     });
 
                 }
@@ -69,6 +69,8 @@ class Program
                 Console.WriteLine("Invalid Path" + ex.Message);
             }
         }
+        // Undersample the data to ensure equal representation of each class
+        trainingPixels = Undersample(trainingPixels);
 
         IDataView trainingData = mlContext.Data.LoadFromEnumerable(trainingPixels);
         Console.WriteLine("Paste path to testing file");
@@ -109,7 +111,7 @@ class Program
                         Hue = hue,
                         Saturation = saturation,
                         Intensity = intensity,
-                        Color = values[2]
+                        Color = values[3]
                     });
 
                 }
@@ -233,6 +235,20 @@ class Program
             }
             Console.WriteLine($"Metrics saved to {metricsPath}");          
         }
+    }
+
+    public static List<PixelData> Undersample(List<PixelData> data)
+    {
+        var groupedData = data.GroupBy(p => p.Color);
+        int minCount = groupedData.Min(g => g.Count());
+
+        List<PixelData> undersampledData = new List<PixelData>();
+        foreach (var group in groupedData)
+        {
+            undersampledData.AddRange(group.Take(minCount));
+        }
+
+        return undersampledData;
     }
 }
 
