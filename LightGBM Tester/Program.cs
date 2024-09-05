@@ -7,6 +7,8 @@ using Microsoft.ML;
 using Microsoft.ML.Data;
 using Microsoft.ML.Trainers.FastTree;
 using Microsoft.ML.Trainers.LightGbm;
+using System.Collections.Generic;
+using System.Linq;
 
 class Program
 {
@@ -14,7 +16,6 @@ class Program
     {
         Console.WriteLine("Input camera color for training(Red or Black)");
         string cameraColor = Console.ReadLine().ToUpper();
-
 
         MLContext mlContext = new MLContext();
         List<PixelData> trainingPixels = new List<PixelData>();
@@ -25,14 +26,11 @@ class Program
         // Training Data
         using (StreamReader reader = new StreamReader(trainingPath))
         {
-
-
             string header = reader.ReadLine();
             try
             {
                 while (!reader.EndOfStream)
                 {
-
                     string line = reader.ReadLine();
                     if (string.IsNullOrEmpty(line))
                     {
@@ -43,7 +41,6 @@ class Program
                     float hue = 0;
                     float saturation = 0;
                     float intensity = 0;
-           
 
                     // Try parsing, and skip the line if parsing fails
                     if (!float.TryParse(values[0].Trim(), out hue) ||
@@ -60,33 +57,33 @@ class Program
                         Intensity = intensity,
                         Color = values[3]
                     });
-
                 }
             }
             catch (Exception ex)
             {
-
                 Console.WriteLine("Invalid Path" + ex.Message);
             }
         }
-        // Undersample the data to ensure equal representation of each class
+
+        Console.WriteLine("UnderSampling Training Data");
+
+        // Undersample the training data
         trainingPixels = Undersample(trainingPixels);
 
         IDataView trainingData = mlContext.Data.LoadFromEnumerable(trainingPixels);
         Console.WriteLine("Paste path to testing file");
         string testPath = Console.ReadLine();
         testPath = testPath.Trim('"');
-        //Testing Data
+
+        // Testing Data
         List<PixelData> testingPixels = new List<PixelData>();
         using (StreamReader reader = new StreamReader(testPath))
         {
-
             string header = reader.ReadLine();
             try
             {
                 while (!reader.EndOfStream)
                 {
-
                     string line = reader.ReadLine();
                     if (string.IsNullOrEmpty(line))
                     {
@@ -101,7 +98,7 @@ class Program
                     // Try parsing, and skip the line if parsing fails
                     if (!float.TryParse(values[0].Trim(), out hue) ||
                         !float.TryParse(values[1].Trim(), out saturation) ||
-                        !float.TryParse(values[2].Trim(), out intensity)) 
+                        !float.TryParse(values[2].Trim(), out intensity))
                     {
                         continue; // Skip this line if any parse fails
                     }
@@ -113,12 +110,10 @@ class Program
                         Intensity = intensity,
                         Color = values[3]
                     });
-
                 }
             }
             catch (Exception ex)
             {
-
                 throw ex;
             }
         }
@@ -126,81 +121,83 @@ class Program
         IDataView testingData = mlContext.Data.LoadFromEnumerable(testingPixels);
         Console.WriteLine("Training...");
 
-        // this is the old LighGBM Model, did not work when implementing into CuDDI(versioning issues)
+        // Define hyperparameter options
+        var numberOfLeavesOptions = new[] { 10, 20, 30 };
+        var numberOfTreesOptions = new[] { 50, 100, 150 };
+        var minExampleCountPerLeafOptions = new[] { 5, 10, 20 };
+        var learningRateOptions = new[] { 0.01, 0.05, 0.1 };
+        var shrinkageOptions = new[] { 0.8, 0.9, 1.0 };
 
-        //var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation", "Intensity" })
-        //    .Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
-        //    .Append(mlContext.MulticlassClassification.Trainers.LightGbm(new LightGbmMulticlassTrainer.Options()
-        //    {
-        //        NumberOfLeaves = 31,
-        //        MinimumExampleCountPerLeaf = 21,
-        //        NumberOfIterations = 140,
-        //        LearningRate = 0.047,
-        //        UseSoftmax = true,
-        //        LabelColumnName = "Label",
-        //        FeatureColumnName = "Features"
-        //    }))
-        //    .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+        double bestAccuracy = 0;
+        FastTreeBinaryTrainer.Options bestOptions = null;
 
-        var options = new FastTreeBinaryTrainer.Options
+        foreach (var leaves in numberOfLeavesOptions)
         {
-            NumberOfLeaves = 20, // Reduced to avoid overfitting and ensure generalization
-            NumberOfTrees = 50, // Moderate number of trees to balance complexity and overfitting risk
-            MinimumExampleCountPerLeaf = 10, // Ensures each leaf has enough data to make robust decisions
-            LearningRate = 0.1, // Lower learning rate to help with gradual convergence
-            Shrinkage = 0.9, // Slight shrinkage to reduce the influence of each tree and avoid overfitting
-            LabelColumnName = "Label",
-            FeatureColumnName = "Features"
-        };
+            foreach (var trees in numberOfTreesOptions)
+            {
+                foreach (var minExampleCount in minExampleCountPerLeafOptions)
+                {
+                    foreach (var learningRate in learningRateOptions)
+                    {
+                        foreach (var shrinkage in shrinkageOptions)
+                        {
+                            // Define trainer options
+                            var options = new FastTreeBinaryTrainer.Options
+                            {
+                                NumberOfLeaves = leaves,
+                                NumberOfTrees = trees,
+                                MinimumExampleCountPerLeaf = minExampleCount,
+                                LearningRate = learningRate,
+                                Shrinkage = shrinkage,
+                                LabelColumnName = "Label",
+                                FeatureColumnName = "Features"
+                            };
 
-        var pipeline = mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color))
-            .Append(mlContext.Transforms.Concatenate("Features", "Hue", "Saturation", "Intensity")) 
+                            // Define the pipeline
+                            var pipeline = mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color))
+                                .Append(mlContext.Transforms.Concatenate("Features", "Hue", "Saturation", "Intensity"))
+                                .Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
+                                    mlContext.BinaryClassification.Trainers.FastTree(options)))
+                                .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+
+                            // Train the model
+                            var model = pipeline.Fit(trainingData);
+
+                            // Evaluate the model
+                            var predictions = model.Transform(testingData);
+                            var metrics = mlContext.MulticlassClassification.Evaluate(predictions);
+
+                            // Track the best model
+                            if (metrics.MacroAccuracy > bestAccuracy)
+                            {
+                                bestAccuracy = metrics.MacroAccuracy;
+                                bestOptions = options;
+                                Console.WriteLine($"New Best Model: Accuracy = {bestAccuracy}, Leaves = {leaves}, Trees = {trees}, LearningRate = {learningRate}, Shrinkage = {shrinkage}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Train the final model with the best hyperparameters
+        var finalPipeline = mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color))
+            .Append(mlContext.Transforms.Concatenate("Features", "Hue", "Saturation", "Intensity"))
             .Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
-                mlContext.BinaryClassification.Trainers.FastTree(labelColumnName: "Label", featureColumnName: "Features")))
+                mlContext.BinaryClassification.Trainers.FastTree(bestOptions)))
             .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
 
+        var finalModel = finalPipeline.Fit(trainingData);
+        Console.WriteLine("Final Model Trained");
 
+        // Evaluate the final model
+        var finalMetrics = mlContext.MulticlassClassification.Evaluate(finalModel.Transform(testingData));
 
-        //var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation"})
-        //.Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
-        //.Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
-        //    mlContext.BinaryClassification.Trainers.FastTree(labelColumnName: "Label", featureColumnName: "Features")
-        //    ))
-        //.Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
-
-        // Fast Tree with custom parameters didnt really affect accuracy
-
-        //var pipeline = mlContext.Transforms.Concatenate("Features", "Hue", "Saturation", "Intensity")
-        //.Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
-        //.Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
-        //mlContext.BinaryClassification.Trainers.FastTree(new FastTreeBinaryTrainer.Options
-        //{
-        //    NumberOfLeaves = 31, // Example: maximum leaves in each tree
-        //    MinimumExampleCountPerLeaf = 21, // Minimum number of examples per leaf
-        //    NumberOfTrees = 140, // Number of trees in the ensemble
-        //    LearningRate = 0.047, // Learning rate
-        //    LabelColumnName = "Label",
-        //    FeatureColumnName = "Features"
-        //})
-        //))
-        //.Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
-
-
-
-
-        var model = pipeline.Fit(trainingData);
-        Console.WriteLine("Model Trained");
-
-
-        Console.WriteLine("Testing...");
-
-        var testMetrics = mlContext.MulticlassClassification.Evaluate(model.Transform(testingData));
-
-        Console.WriteLine($"Log-Loss: {testMetrics.LogLoss}");
-        Console.WriteLine($"Per class Log-Loss: {string.Join(" , ", testMetrics.PerClassLogLoss.Select(c => c.ToString()))}");
-        Console.WriteLine($"Macro Accuracy: {testMetrics.MacroAccuracy}");
-        Console.WriteLine($"Micro Accuracy: {testMetrics.MicroAccuracy}");
-        Console.WriteLine($"Confusion Matrix:\n {testMetrics.ConfusionMatrix.GetFormattedConfusionTable()}\n");
+        Console.WriteLine($"Final Model Log-Loss: {finalMetrics.LogLoss}");
+        Console.WriteLine($"Final Model Per class Log-Loss: {string.Join(" , ", finalMetrics.PerClassLogLoss.Select(c => c.ToString()))}");
+        Console.WriteLine($"Final Model Macro Accuracy: {finalMetrics.MacroAccuracy}");
+        Console.WriteLine($"Final Model Micro Accuracy: {finalMetrics.MicroAccuracy}");
+        Console.WriteLine($"Final Model Confusion Matrix:\n {finalMetrics.ConfusionMatrix.GetFormattedConfusionTable()}\n");
 
         Console.WriteLine("Save the Model?");
         var response = Console.ReadLine()?.ToLower();
@@ -213,27 +210,27 @@ class Program
             }
             Console.WriteLine("What version is this model?");
             var version = Console.ReadLine();
-            string modelPath = Path.Combine(folderPath, $"FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.zip");
-            mlContext.Model.Save(model, trainingData.Schema, modelPath);
+            string modelPath = Path.Combine(folderPath, $"FastTreeModel{cameraColor}v{version}_acc_{finalMetrics.MacroAccuracy}.zip");
+            mlContext.Model.Save(finalModel, trainingData.Schema, modelPath);
             Console.WriteLine(@$"Model saved to {modelPath}");
-            string metricsPath = Path.Combine(folderPath, $"FastTreeModel{cameraColor}v{version}_acc_{testMetrics.MacroAccuracy}.txt");
+            string metricsPath = Path.Combine(folderPath, $"FastTreeModel{cameraColor}v{version}_acc_{finalMetrics.MacroAccuracy}.txt");
             using (var writer = new StreamWriter(metricsPath))
             {
                 writer.WriteLine("Metric,Value");
-                writer.WriteLine($"Macro Accuracy,{testMetrics.MacroAccuracy.ToString(CultureInfo.InvariantCulture)}");
-                writer.WriteLine($"Micro Accuracy,{testMetrics.MicroAccuracy.ToString(CultureInfo.InvariantCulture)}");
-                writer.WriteLine($"Log-Loss,{testMetrics.LogLoss.ToString(CultureInfo.InvariantCulture)}");
+                writer.WriteLine($"Macro Accuracy,{finalMetrics.MacroAccuracy.ToString(CultureInfo.InvariantCulture)}");
+                writer.WriteLine($"Micro Accuracy,{finalMetrics.MicroAccuracy.ToString(CultureInfo.InvariantCulture)}");
+                writer.WriteLine($"Log-Loss,{finalMetrics.LogLoss.ToString(CultureInfo.InvariantCulture)}");
 
                 // Write per class log-loss
-                for (int i = 0; i < testMetrics.PerClassLogLoss.Count; i++)
+                for (int i = 0; i < finalMetrics.PerClassLogLoss.Count; i++)
                 {
-                    writer.WriteLine($"Class {i} Log-Loss,{testMetrics.PerClassLogLoss[i].ToString(CultureInfo.InvariantCulture)}");
+                    writer.WriteLine($"Class {i} Log-Loss,{finalMetrics.PerClassLogLoss[i].ToString(CultureInfo.InvariantCulture)}");
                 }
-                writer.WriteLine($"Confusion Matrix:\n {testMetrics.ConfusionMatrix.GetFormattedConfusionTable()}\n");
+                writer.WriteLine($"Confusion Matrix:\n {finalMetrics.ConfusionMatrix.GetFormattedConfusionTable()}\n");
                 writer.WriteLine($"Model Training Data: {trainingPath}");
                 writer.WriteLine($"Model Testing Data: {testPath}");
             }
-            Console.WriteLine($"Metrics saved to {metricsPath}");          
+            Console.WriteLine($"Metrics saved to {metricsPath}");
         }
     }
 
@@ -262,22 +259,14 @@ public class PixelData
     public float Intensity { get; set; }
     [LoadColumn(3)]
     public string Color { get; set; }
-
 }
 
-//public class PixelDataWithLabel 
-//{
-//    public float Hue { get; set; }
-//    public float Saturation { get; set; }
-//    public float Intensity { get; set; }
-//    public string Color { get; set; }
-//}
-
-public class Predicition
+public class Prediction
 {
     [ColumnName("PredictedLabel")]
     public string Color { get; set; }
 }
+
 
 
 
