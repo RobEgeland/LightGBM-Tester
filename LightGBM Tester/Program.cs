@@ -43,6 +43,7 @@ class Program
                     float hue = 0;
                     float saturation = 0;
                     float intensity = 0;
+           
 
                     // Try parsing, and skip the line if parsing fails
                     if (!float.TryParse(values[0].Trim(), out hue) ||
@@ -57,7 +58,7 @@ class Program
                         Hue = hue,
                         Saturation = saturation,
                         Intensity = intensity,
-                        Color = values[3]
+                        Color = values[2]
                     });
 
                 }
@@ -98,7 +99,7 @@ class Program
                     // Try parsing, and skip the line if parsing fails
                     if (!float.TryParse(values[0].Trim(), out hue) ||
                         !float.TryParse(values[1].Trim(), out saturation) ||
-                        !float.TryParse(values[2].Trim(), out intensity))
+                        !float.TryParse(values[2].Trim(), out intensity)) 
                     {
                         continue; // Skip this line if any parse fails
                     }
@@ -108,7 +109,7 @@ class Program
                         Hue = hue,
                         Saturation = saturation,
                         Intensity = intensity,
-                        Color = values[3]
+                        Color = values[2]
                     });
 
                 }
@@ -139,12 +140,31 @@ class Program
         //    }))
         //    .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
 
-        var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation", "Intensity" })
-        .Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
-        .Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
-            mlContext.BinaryClassification.Trainers.FastTree(labelColumnName: "Label", featureColumnName: "Features")
-            ))
-        .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+        var options = new FastTreeBinaryTrainer.Options
+        {
+            NumberOfLeaves = 20, // Reduced to avoid overfitting and ensure generalization
+            NumberOfTrees = 50, // Moderate number of trees to balance complexity and overfitting risk
+            MinimumExampleCountPerLeaf = 10, // Ensures each leaf has enough data to make robust decisions
+            LearningRate = 0.1, // Lower learning rate to help with gradual convergence
+            Shrinkage = 0.9, // Slight shrinkage to reduce the influence of each tree and avoid overfitting
+            LabelColumnName = "Label",
+            FeatureColumnName = "Features"
+        };
+
+        var pipeline = mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color))
+            .Append(mlContext.Transforms.Concatenate("Features", "Hue", "Saturation", "Intensity")) 
+            .Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
+                mlContext.BinaryClassification.Trainers.FastTree(labelColumnName: "Label", featureColumnName: "Features")))
+            .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+
+
+
+        //var pipeline = mlContext.Transforms.Concatenate("Features", new[] { "Hue", "Saturation"})
+        //.Append(mlContext.Transforms.Conversion.MapValueToKey("Label", nameof(PixelData.Color)))
+        //.Append(mlContext.MulticlassClassification.Trainers.OneVersusAll(
+        //    mlContext.BinaryClassification.Trainers.FastTree(labelColumnName: "Label", featureColumnName: "Features")
+        //    ))
+        //.Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
 
         // Fast Tree with custom parameters didnt really affect accuracy
 
