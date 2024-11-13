@@ -54,7 +54,7 @@ class Program
                         Hue = hue,
                         Saturation = saturation,
                         Intensity = intensity,
-                        Color = values[3]
+                        Color = values[8]
                     });
                 }
             }
@@ -67,10 +67,13 @@ class Program
         // Undersample the data to ensure equal representation of each class
         //pixels = Undersample(pixels);
 
+        // Add Weights here 
+
         IDataView data = mlContext.Data.LoadFromEnumerable(pixels);
 
         // Split the data into training and testing sets
-        var split = mlContext.Data.TrainTestSplit(data, testFraction: 0.2);
+        var split = mlContext.Data.TrainTestSplit(data, testFraction: 0.3);
+
         IDataView trainingData = split.TrainSet;
         IDataView testingData = split.TestSet;
 
@@ -132,16 +135,50 @@ class Program
     public static List<PixelData> Undersample(List<PixelData> data)
     {
         var groupedData = data.GroupBy(p => p.Color);
-        int minCount = groupedData.Min(g => g.Count());
-
         List<PixelData> undersampledData = new List<PixelData>();
+
+        Random rand = new Random();
+
         foreach (var group in groupedData)
         {
-            undersampledData.AddRange(group.Take(minCount));
+            // Calculate the average values for Hue, Saturation, and Intensity in the group
+            double avgHue = group.Average(p => p.Hue);
+            double avgSaturation = group.Average(p => p.Saturation);
+            double avgIntensity = group.Average(p => p.Intensity);
+
+            // Remove 10% from top and bottom based on deviation from the average
+            var scoredGroup = group.Select(p => new
+            {
+                Pixel = p,
+                Deviation = Math.Abs(p.Hue - avgHue) + Math.Abs(p.Saturation - avgSaturation) + Math.Abs(p.Intensity - avgIntensity)
+            }).OrderBy(p => p.Deviation).ToList();
+
+            int count = scoredGroup.Count;
+            int removeCount = (int)(count * 0.1); // Remove 10% from top and bottom
+
+            // Take the middle portion to maintain average values
+            var middlePortion = scoredGroup.Skip(removeCount).Take(count - 2 * removeCount).Select(p => p.Pixel);
+            undersampledData.AddRange(middlePortion);
         }
 
         return undersampledData;
     }
+
+
+
+    //public static List<PixelData> Undersample(List<PixelData> data)
+    //{
+    //    var groupedData = data.GroupBy(p => p.Color);
+    //    int minCount = groupedData.Min(g => g.Count());
+
+    //    List<PixelData> undersampledData = new List<PixelData>();
+    //    foreach (var group in groupedData)
+    //    {
+    //        undersampledData.AddRange(group.Take(minCount));
+    //    }
+
+    //    return undersampledData;
+    //}
 }
 
 public class PixelData
